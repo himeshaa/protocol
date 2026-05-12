@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://himeshaa.dev/schema/hmp-v1.json",
+  "title": "HMP Node Declaration",
+  "description": "Declares a repository as an HMP Declared Node, enabling priority indexing and higher trust weight in the Hive Mind. This file MUST be located at .himeshaa/hmp.json in the repository root.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri",
+      "description": "Reference to this schema for validation."
+    },
+    "hmp_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-z0-9\\-]+(\\.[a-z0-9\\-]+)*)?$",
+      "description": "The HMP protocol version this declaration conforms to. Follows Semantic Versioning (e.g., '0.1.0', '1.0.0-draft')."
+    },
+    "context": {
+      "type": "object",
+      "description": "Structural description of the repository's technology stack and domain. This context is used by the Server to position the Node in the dependency and similarity graphs.",
+      "properties": {
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "minItems": 1,
+          "maxItems": 32,
+          "description": "Primary programming languages used in this repository (e.g., 'php', 'typescript', 'python')."
+        },
+        "frameworks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "maxItems": 32,
+          "description": "Frameworks used in this repository (e.g., 'laravel', 'vue', 'django')."
+        },
+        "runtime": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "maxItems": 16,
+          "description": "Runtime environments (e.g., 'node', 'roadrunner', 'docker', 'kubernetes')."
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Primary domain classification (e.g., 'web-application', 'cli-tool', 'machine-learning', 'saas-platform')."
+        },
+        "architecture": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "maxItems": 16,
+          "description": "Architecture patterns (e.g., 'monolith', 'microservices', 'event-driven', 'queue-workers')."
+        }
+      },
+      "required": ["languages", "domain"]
+    },
+    "_meta": {
+      "$ref": "common-v1.json#/definitions/meta"
+    }
+  },
+  "required": ["hmp_version", "context"]
+}

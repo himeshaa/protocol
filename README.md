@@ -161,7 +161,8 @@ Agent asks the Hive Mind for intelligence. The Server searches its index and ret
       "stack": ["php-8.3", "laravel-12", "mysql-8"],
       "files": ["app/Models/User.php"]
     },
-    "limit": 5
+    "limit": 5,
+    "cursor": null
   }
 }
 
@@ -182,7 +183,9 @@ Agent asks the Hive Mind for intelligence. The Server searches its index and ret
           "age_days": 45
         }
       }
-    ]
+    ],
+    "next_cursor": null,
+    "has_more": false
   }
 }
 ```
@@ -375,6 +378,10 @@ All state mutations happen via Git commits to `.himeshaa/`. The protocol defines
 
 ### 8.1. `.himeshaa/hmp.json` — Node Declaration
 
+The `context.languages` and `context.domain` fields are REQUIRED. All other context fields are OPTIONAL.
+
+JSON Schema: [`schemas/hmp-v1.json`](schemas/hmp-v1.json)
+
 ```json
 {
   "$schema": "https://himeshaa.dev/schema/hmp-v1.json",
@@ -390,6 +397,10 @@ All state mutations happen via Git commits to `.himeshaa/`. The protocol defines
 ```
 
 ### 8.2. `.himeshaa/memories/{id}.json` — Memory
+
+The `content` field SHOULD NOT exceed 32,768 characters. The `created_at` field MUST use UTC with the `Z` suffix — timezone offsets and fractional seconds are prohibited.
+
+JSON Schema: [`schemas/memory-v1.json`](schemas/memory-v1.json)
 
 ```json
 {
@@ -433,7 +444,9 @@ When Agent A discovers that a memory from Node B is wrong in its context, Agent 
 }
 ```
 
-The `target` field uses a URN (see §8.5). The `target_blob_sha` is REQUIRED — it anchors the endorsement to the exact content of the target memory at the time of contradiction. The Server MUST ignore contradictions where the current blob SHA of the target memory diverges from `target_blob_sha`. This prevents bait-and-switch attacks where a Node silently edits a memory after receiving endorsements.
+The `target` field uses a URN (see §8.5). The `target_blob_sha` is REQUIRED — it anchors the endorsement to the exact content of the target memory at the time of contradiction. The field accepts both SHA-1 (40 hex characters) and SHA-256 (64 hex characters) to support the Git 3.0 hash transition. The Server MUST ignore contradictions where the current blob SHA of the target memory diverges from `target_blob_sha`. This prevents bait-and-switch attacks where a Node silently edits a memory after receiving endorsements.
+
+JSON Schema: [`schemas/contradiction-v1.json`](schemas/contradiction-v1.json)
 
 ### 8.4. `.himeshaa/confirmations/{id}.json` — Confirmation
 
@@ -458,6 +471,8 @@ The `target_blob_sha` is REQUIRED — same rationale as contradictions. The Serv
 
 Without confirmations, the `Σ A_confirming` in the evidence weight formula (§9.2) would be permanently static. Confirmations are the explicit edges in the epistemic graph that make consensus computable from Git.
 
+JSON Schema: [`schemas/confirmation-v1.json`](schemas/confirmation-v1.json)
+
 ### 8.5. URN Addressing
 
 All cross-Node references MUST use a Uniform Resource Name (URN) to ensure global uniqueness.
@@ -468,17 +483,27 @@ All cross-Node references MUST use a Uniform Resource Name (URN) to ensure globa
 urn:hmp:{node_uri}:{object_type}:{object_id}
 ```
 
+**Validation:** The `node_uri` component is provider-agnostic and MUST contain only characters from the RFC 3986 unreserved set plus `/` and `%` for percent-encoding. The following regex defines the valid URN syntax:
+
+```
+^urn:hmp:[a-zA-Z0-9][a-zA-Z0-9\-._~/%]*:(memory|contradiction|confirmation):[a-z0-9][a-z0-9\-]*$
+```
+
 **Examples:**
 
 | URN | What It Addresses |
 |-----|-------------------|
 | `urn:hmp:github.com/org/repo:memory:mem-001` | A specific memory in a Node |
-| `urn:hmp:github.com/org/repo:contradiction:contra-001` | A specific contradiction |
-| `urn:hmp:github.com/org/repo:confirmation:conf-001` | A specific confirmation |
+| `urn:hmp:gitlab.com/group/sub/project:contradiction:contra-001` | A contradiction (GitLab subgroups) |
+| `urn:hmp:gitea.self-hosted.dev/team/repo:confirmation:conf-001` | A confirmation (self-hosted forge) |
 
 URNs are the primary keys in the Materialized Index.
 
-**Canonicalization:** GitHub allows repository and user renames, which would break URN-based pointers. Servers MUST resolve HTTP 301 redirects from the GitHub API during indexing, silently converging all URNs to the repository's current canonical name. Alternatively, implementations MAY use GitHub's immutable GraphQL Node ID (`MDEwOlJlcG9zaXRvcnkxMjM=`) as the `node_uri` component to achieve permanent referential integrity regardless of renames.
+**Case Normalization:** The `node_uri` component MUST be normalized to lowercase before storage and comparison. Implementations MUST perform case-insensitive matching on `node_uri` because Git forges (GitHub, GitLab) treat repository paths case-insensitively.
+
+**Rename Resolution:** Forges allow repository and user renames, which would break URN-based pointers. Servers MUST resolve HTTP 301 redirects from the forge API during indexing, silently converging all URNs to the repository's current canonical name. Alternatively, implementations MAY use the forge's immutable internal ID as the `node_uri` component to achieve permanent referential integrity regardless of renames.
+
+Shared type definitions: [`schemas/common-v1.json`](schemas/common-v1.json)
 
 ## 9. Confidence Model
 
@@ -492,27 +517,46 @@ C = S × W × T × A_eff
 
 Where:
 - **S** = Context similarity between request and memory origin (cosine similarity, [0, 1])
-- **W** = Authority-weighted evidence
-- **T** = Time decay (class-adaptive)
-- **A_eff** = Effective authority (see §9.4)
+- **W** = Authority-weighted evidence (asymptotically normalized, [0, 1))
+- **T** = Time decay (class-adaptive, [0, 1])
+- **A_eff** = Effective authority ([0, 1], see §9.4)
+
+All four factors are bounded to [0, 1]. Therefore C ∈ [0, 1] naturally — no clamping or post-hoc normalization is required. This preserves full ranking granularity: a memory with 5,000 confirmations is mathematically distinguishable from a memory with 50 confirmations.
 
 ### 9.2. W — Authority-Weighted Evidence
 
+All logarithmic operations in this section MUST use the **natural logarithm** (base *e*, commonly denoted `ln`). Implementations using languages or libraries where `log()` defaults to base 10 MUST use the appropriate natural logarithm function instead.
+
 ```
-W = log(1 + Σ A_confirming) / (1 + Σ A_contradicting)
+W = ln(1 + Σ A_confirming) / (ln(1 + Σ A_confirming) + ln(1 + Σ A_contradicting) + 1)
 ```
+
+W is asymptotically bounded to [0, 1). As evidence accumulates, W approaches 1.0 but never reaches it, preserving ranking gradients at all scales.
 
 A node is NOT a vote. Evidence is weighted by the authority of the confirming/contradicting Nodes.
 
-100,000 empty repositories with `A ≈ 0` confirming a memory: `W = log(1 + 0) / 1 = 0`. Worthless.
+100,000 empty repositories with `A ≈ 0` confirming a memory: `W = ln(1 + 0) / (0 + 0 + 1) = 0`. Worthless.
 
-1 contradiction from `laravel/framework` with `A = 0.98`: dominates the denominator and buries the memory.
+1 contradiction from `laravel/framework` with `A = 0.98`: increases the denominator and suppresses the memory.
 
 This makes Sybil attacks economically infeasible. Authority is derived from real ecosystem gravity — you cannot fake 245,000 dependents.
 
+**Verification vector:** Given Σ A_confirming = 49.0 and Σ A_contradicting = 0, implementations MUST produce `W = 0.7964 ± 0.0001`.
+
 ### 9.3. T — Time Decay
 
-See memory class table in §8.2.
+```
+T = 0.5 ^ (t / t_half)
+```
+
+Where `t` is the age of the memory in days (current time minus `created_at`) and `t_half` is the half-life in days determined by the memory class:
+
+| Class | Half-Life (t_half) | T after 90d | T after 1yr | T after 3yr |
+|-------|--------------------|-------------|-------------|-------------|
+| `version_specific` | 90 days | 0.50 | 0.06 | 0.0002 |
+| `environmental` | 180 days | 0.71 | 0.25 | 0.016 |
+| `behavioral` | 365 days | 0.84 | 0.50 | 0.125 |
+| `architectural` | 1095 days | 0.94 | 0.80 | 0.50 |
 
 ### 9.4. A_eff — Effective Authority
 

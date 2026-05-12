@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://himeshaa.dev/schema/common-v1.json",
+  "title": "HMP Common Definitions",
+  "description": "Shared type definitions for the Himeshaa Protocol v0.1.0 file schemas. These definitions are referenced by hmp-v1.json, memory-v1.json, contradiction-v1.json, and confirmation-v1.json via external $ref.",
+  "definitions": {
+    "memory_context": {
+      "type": "object",
+      "description": "Contextual metadata describing when and where a piece of knowledge applies. Used by memories, contradictions, and confirmations to enable similarity matching during retrieval.",
+      "properties": {
+        "stack": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "minItems": 1,
+          "maxItems": 64,
+          "description": "Technology stack identifiers for similarity matching. Use lowercase with version numbers where relevant (e.g., 'php-8.3', 'laravel-12', 'mysql-8'). This field drives the context similarity factor (S) in the confidence formula."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "maxItems": 256,
+          "description": "Relevant file paths within the repository where this knowledge was observed or applies."
+        }
+      },
+      "required": ["stack"]
+    },
+    "hmp_urn": {
+      "type": "string",
+      "pattern": "^urn:hmp:[a-zA-Z0-9][a-zA-Z0-9\\-._~/%]*:(memory|contradiction|confirmation):[a-z0-9][a-z0-9\\-]*$",
+      "description": "A globally unique URN addressing an object in the Hive Mind. Format: urn:hmp:{node_uri}:{object_type}:{object_id}. The node_uri component is provider-agnostic (supports GitHub, GitLab, Gitea, Codeberg, self-hosted forges) and MUST be normalized to lowercase before storage and comparison. Character set follows RFC 8141 and RFC 3986 unreserved characters."
+    },
+    "blob_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+      "description": "Git blob hash anchoring a cross-node reference to a specific content version. Accepts SHA-1 (40 hex characters) and SHA-256 (64 hex characters) to support both current Git repositories and the SHA-256 transition in Git 3.0+."
+    },
+    "object_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9\\-]*$",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "A unique identifier within the Node's namespace. MUST match the filename without the .json extension (e.g., id 'mem-001' corresponds to file 'mem-001.json')."
+    },
+    "utc_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "ISO 8601 / RFC 3339 timestamp in UTC. MUST terminate with the Z suffix. Timezone offsets and fractional seconds are prohibited to ensure deterministic time decay computation across all implementations."
+    },
+    "meta": {
+      "type": "object",
+      "maxProperties": 32,
+      "description": "Implementation-specific metadata extension point. Servers and agents MAY use this field to attach indexing hints, provenance data, or tooling metadata. Nesting SHOULD NOT exceed 2 levels of depth."
+    }
+  }
+}

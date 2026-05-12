@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://himeshaa.dev/schema/confirmation-v1.json",
+  "title": "HMP Confirmation",
+  "description": "Validates that an existing memory from another Node works correctly in this context. File: .himeshaa/confirmations/{id}.json",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string", "format": "uri" },
+    "id": { "$ref": "common-v1.json#/definitions/object_id" },
+    "target": { "$ref": "common-v1.json#/definitions/hmp_urn" },
+    "target_blob_sha": { "$ref": "common-v1.json#/definitions/blob_sha" },
+    "outcome": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16384,
+      "description": "What happened when the target memory was applied in this context."
+    },
+    "context": { "$ref": "common-v1.json#/definitions/memory_context" },
+    "created_at": { "$ref": "common-v1.json#/definitions/utc_timestamp" },
+    "_meta": { "$ref": "common-v1.json#/definitions/meta" }
+  },
+  "required": ["id", "target", "target_blob_sha", "outcome", "context", "created_at"]
+}

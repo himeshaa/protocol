@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://himeshaa.dev/schema/memory-v1.json",
+  "title": "HMP Memory",
+  "description": "The atomic unit of learned experience in the Hive Mind. File: .himeshaa/memories/{id}.json",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string", "format": "uri" },
+    "id": { "$ref": "common-v1.json#/definitions/object_id" },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32768,
+      "description": "The learned knowledge. SHOULD be concise while remaining actionable."
+    },
+    "class": {
+      "type": "string",
+      "enum": ["version_specific", "environmental", "behavioral", "architectural"],
+      "description": "Classification determining time decay half-life."
+    },
+    "context": { "$ref": "common-v1.json#/definitions/memory_context" },
+    "created_at": { "$ref": "common-v1.json#/definitions/utc_timestamp" },
+    "_meta": { "$ref": "common-v1.json#/definitions/meta" }
+  },
+  "required": ["id", "content", "class", "context", "created_at"]
+}

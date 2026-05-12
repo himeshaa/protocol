@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://himeshaa.dev/schema/contradiction-v1.json",
+  "title": "HMP Contradiction",
+  "description": "A formal dispute of an existing memory from another Node. File: .himeshaa/contradictions/{id}.json",
+  "type": "object",
+  "properties": {
+    "$schema": { "type": "string", "format": "uri" },
+    "id": { "$ref": "common-v1.json#/definitions/object_id" },
+    "target": { "$ref": "common-v1.json#/definitions/hmp_urn" },
+    "target_blob_sha": { "$ref": "common-v1.json#/definitions/blob_sha" },
+    "evidence": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32768,
+      "description": "Detailed explanation of why the target memory is incorrect in this context."
+    },
+    "context": { "$ref": "common-v1.json#/definitions/memory_context" },
+    "created_at": { "$ref": "common-v1.json#/definitions/utc_timestamp" },
+    "_meta": { "$ref": "common-v1.json#/definitions/meta" }
+  },
+  "required": ["id", "target", "target_blob_sha", "evidence", "context", "created_at"]
+}
