@@ -702,7 +702,7 @@ SHA-256 of the UTF-8 byte sequence: `00d9bb05a15f96965c4116d31f0a02f1558502f706b
   "result": {
     "server_info": { "name": "himeshaa", "version": "0.1.0" },
     "hmp_version": "0.1.0",
-    "capabilities": ["core", "graph", "node"],
+    "capabilities": ["core", "graph", "node", "perception"],
     "embedding_model": "text-embedding-3-small",
     "embedding_dimensions": 1536
   }
@@ -1068,7 +1068,7 @@ Sync is pull-based. Each Server maintains a `server_head` timestamp representing
 
 #### 10.4.5. Trust Between Peers
 
-Pulse peers MUST authenticate via mutual TLS. A peer's index data is treated as a cache hint — the receiving Server SHOULD independently verify high-authority memories against the source Git repository before incorporating them into its own index.
+Pulse peers MUST authenticate via mutual TLS. A peer's index data is treated as a cache hint, not ground truth. The receiving Server MUST independently verify memories from **Declared Nodes** (`declared: true`) against the source Git repository before incorporating them into its own index. For undeclared Nodes, the receiving Server SHOULD verify when computationally feasible. In all cases, the authoritative state lives in Git — if the peer's data conflicts with the forge, the forge wins.
 
 ## 11. Trust Model
 
@@ -1090,7 +1090,7 @@ No anonymous RPC can mutate the Hive Mind's state. This eliminates the entire cl
 
 ### 11.3. Declared Node Reward
 
-Nodes with `.himeshaa/hmp.json` receive higher `A` factor. Incentivizes declaration without penalizing undeclared Nodes.
+Nodes with `.himeshaa/hmp.json` receive a **25% authority boost** (`B = 1.0` vs `B = 0.8` for undeclared Nodes in §9.5). Declaration rewards Nodes that invest in structured intelligence with higher visibility in retrieval results. Undeclared Nodes still contribute latent intelligence and can receive confirmations — their memories are not excluded, only ranked lower proportionally.
 
 ### 11.4. Rate Limiting
 
@@ -1226,7 +1226,7 @@ These systems manage shared memory for agents within a single organization or co
 
 These systems orchestrate multiple agents for specific reasoning tasks. HMP provides the persistent knowledge layer that makes their outputs reusable.
 
-**MA-RAG** (2024; arXiv:2501.15022). Modular multi-agent RAG: Planner decomposes queries, Step Definer generates subqueries, Extractor filters evidence, QA Agent synthesizes answers via Chain-of-Thought. Training-free, significantly outperforms standalone RAG on multi-hop QA. MA-RAG produces answers for one query session. HMP makes the answer persistent — once an MA-RAG pipeline solves a complex architectural question, that knowledge becomes a memory available to every future agent.
+**MA-RAG** (2025; arXiv:2505.20096). Modular multi-agent RAG: Planner decomposes queries, Step Definer generates subqueries, Extractor filters evidence, QA Agent synthesizes answers via Chain-of-Thought. Training-free, significantly outperforms standalone RAG on multi-hop QA. MA-RAG produces answers for one query session. HMP makes the answer persistent — once an MA-RAG pipeline solves a complex architectural question, that knowledge becomes a memory available to every future agent.
 
 **SOHM** (2024; arXiv:2412.03065). The "Society of HiveMind" framework: swarms of heterogeneous foundation models optimized via hybrid gradient-based and evolutionary methods. Inspired by Minsky's Society of Mind and natural swarm intelligence. Demonstrates significant gains on intensive logical reasoning tasks, negligible benefit on simple factual recall. SOHM is a training-time optimization framework for model swarms. HMP is a runtime protocol for knowledge sharing. They operate at different layers: SOHM optimizes how agents think together; HMP defines how agents share what they've learned.
 
