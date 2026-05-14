@@ -65,8 +65,8 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHOULD", "MAY" are inter
 |------|-------------|
 | **HMP Server** | A stateless indexer. Reads public Git forges (GitHub, GitLab, Gitea, Codeberg, self-hosted), builds a Materialized Index, serves read-only queries to agents. No database — Git IS the database. The index is ephemeral. |
 | **Node** | A public repository on any Git forge. Every public repo IS a Node — it contributes latent intelligence (code, dependencies, contributors) without any opt-in. |
-| **Declared Node** | A Node with `.himeshaa/hmp.json`. The upgrade: gets priority indexing, higher trust weight, and can publish structured memories. |
-| **Agent** | A temporary worker that queries the Server for intelligence and commits learnings to its own repo's `.himeshaa/`. |
+| **Declared Node** | A Node with `.himeshaa/hmp.json`. The upgrade: gets priority indexing and a 25% authority boost (`B = 1.0` vs `B = 0.8`). Any Node can have `.himeshaa/memories/`, but Declared Nodes are indexed first and weighted higher. |
+| **Agent** | A temporary worker that queries the Server for intelligence and commits learnings to its own repo's `.himeshaa/`. Agents have no persistent identity in the protocol — the Server identifies them by transport-level connection (IP address, WebSocket session, or TLS client certificate). |
 
 ### 2.2. Glossary
 
@@ -74,7 +74,7 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHOULD", "MAY" are inter
 |------|------------|
 | **Hive Mind** | The collective intelligence of all public repositories across all Git forges. Already exists. Not tied to any single platform. |
 | **Node** | A public repository on any Git forge. Contributes latent intelligence by existing. |
-| **Declared Node** | A Node with `.himeshaa/hmp.json` — the upgrade. Receives priority indexing and higher trust weight. |
+| **Declared Node** | A Node with `.himeshaa/hmp.json` — the upgrade. Receives priority indexing and a 25% authority boost. |
 | **Latent Intelligence** | Knowledge that a Server extracts from any public repository without opt-in: dependency graphs, technology stack, contributor network, code patterns, issue correlations. |
 | **Structured Intelligence** | Knowledge explicitly authored by agents in `.himeshaa/` files: memories, contradictions, confirmations. Higher confidence, formal provenance. |
 | **Memory** | A JSON file in `.himeshaa/memories/` conforming to the HMP Memory Schema. The atomic unit of structured learned experience. |
@@ -325,7 +325,7 @@ After committing files to `.himeshaa/`, the agent pings the Server to re-index.
 The `commit_sha` is REQUIRED. The Server MUST compare this SHA against the HEAD returned by the forge API. If the API returns an older SHA (due to CDN replication lag), the Server MUST enqueue the ping and retry with exponential backoff until the target SHA is visible.
 
 **DoS Protection:** The Server MUST enforce:
-- **1 pending ping** per Node per Agent. A new ping for the same Node overwrites the previous queued ping.
+- **1 pending ping** per Node per connection. A new ping for the same Node from the same connection overwrites the previous queued ping. "Connection" is defined by the transport-level identity: IP address for HTTP, WebSocket session ID for persistent connections, or TLS client certificate for mTLS environments.
 - **3-minute TTL** on queued pings. If the target SHA is not visible on the forge within 3 minutes, the ping is discarded silently.
 - Pings with SHAs that fail Git's SHA format validation (not a valid hex string) MUST be rejected immediately.
 
@@ -802,6 +802,19 @@ Latent Intelligence provides **structural context** (who depends on whom, what t
 
 Extensions are OPTIONAL. A Server declares which extensions it supports via the `capabilities` array in the `hmp.initialize` response. Agents MUST NOT call extension methods that were not declared by the Server.
 
+**Canonical capability strings:**
+
+| Capability | Methods Unlocked | Section |
+|------------|------------------|---------|
+| `core` | `hmp.initialize`, `hmp.memory.request` | §4–§5 |
+| `graph` | `hmp.graph.traverse`, `hmp.graph.context` | §6 |
+| `node` | `hmp.node.ping`, `hmp.node.memory.list`, `hmp.node.memory.read` | §7 |
+| `perception` | `hmp.signal.emit`, `hmp.signal.broadcast`, `hmp.signal.poll` | §10.1 |
+| `reasoning` | `hmp.reason.collective` | §10.2 |
+| `introspection` | `hmp.network.introspect` | §10.3 |
+
+`core`, `graph`, and `node` are REQUIRED — every conformant Server MUST declare them. `perception`, `reasoning`, and `introspection` are OPTIONAL extensions.
+
 ### 10.1. Perception — `hmp.signal.*`
 
 Real-time situational awareness for emerging patterns across the Hive Mind.
@@ -1094,13 +1107,13 @@ Nodes with `.himeshaa/hmp.json` receive a **25% authority boost** (`B = 1.0` vs 
 
 ### 11.4. Rate Limiting
 
-Servers SHOULD implement rate limiting on read RPCs:
+Servers SHOULD implement rate limiting on read RPCs. Rate limits are applied **per connection** (see §2.1 for connection identity definition):
 
 | Method | Recommended Limit |
 |--------|-------------------|
-| `hmp.memory.request` | 120/agent/hour |
-| `hmp.graph.traverse` | 60/agent/hour |
-| `hmp.node.ping` | 30/agent/hour |
+| `hmp.memory.request` | 120/connection/hour |
+| `hmp.graph.traverse` | 60/connection/hour |
+| `hmp.node.ping` | 30/connection/hour |
 
 ## 12. Method Reference
 
