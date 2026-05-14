@@ -48,7 +48,7 @@ A Server indexing only Latent Intelligence already provides enormous value: depe
 1. **Git IS the source of truth.** All state lives in Git — not in any specific forge. GitHub is the first and largest Hive Mind, but GitLab, Gitea, Codeberg, and any self-hosted forge are equally valid. The `.himeshaa/` directory is the structured brain of a Declared Node. Every mutation is a commit.
 2. **The Hive Mind exists on day zero.** Any public repository contributes latent intelligence (code, dependencies, contributors, issues) without any opt-in. `.himeshaa/` is an upgrade that earns priority indexing and higher trust weight — not a prerequisite for participation.
 3. **The Server is stateless.** The HMP Server maintains a Materialized Index — an ephemeral read-only cache of the Hive Mind. It can be destroyed and rebuilt entirely from Git forges at any time. It is not a database. It is a search engine.
-4. **RPCs are read-only.** No RPC mutates global state. State mutations happen exclusively via Git commits to `.himeshaa/`. The only write-direction RPC is `hmp.node.ping` — a cache invalidation signal with no payload.
+4. **RPCs are read-only.** No RPC mutates global state. State mutations happen exclusively via Git commits to `.himeshaa/`. The only write-direction RPC is `hmp.node.ping` — a cache invalidation signal that carries only a Node URI and commit SHA, not Hive Mind data.
 5. **Everything has an interface.** This is a protocol. Every operation is a JSON-RPC method. Every file has a schema.
 6. **The agent owns the Node's brain.** The `.himeshaa/` directory belongs to the agent working on the repo. The agent decides what to commit there.
 7. **Zero friction.** No tokens, no registration. Public is public.
@@ -382,6 +382,7 @@ Agent reads a specific memory from any Node.
     "class": "architectural",
     "context": {
       "stack": ["php-8.3", "laravel-12"],
+      "domain": "web-framework",
       "files": ["app/Providers/AppServiceProvider.php"]
     }
   }
@@ -426,6 +427,7 @@ JSON Schema: [`schemas/memory-v1.json`](schemas/memory-v1.json)
   "class": "version_specific",
   "context": {
     "stack": ["php-8.3", "roadrunner-3", "laravel-12"],
+    "domain": "web-application",
     "files": ["rr.yaml", "app/Providers/AppServiceProvider.php"]
   },
   "created_at": "2026-05-10T05:00:00Z"
@@ -454,6 +456,7 @@ When Agent A discovers that a memory from Node B is wrong in its context, Agent 
   "evidence": "The OOM was caused by a missing composite index on user_id+created_at, not eager loading volume. Cursor pagination is unnecessary when the index is correct.",
   "context": {
     "stack": ["php-8.3", "laravel-12", "mysql-8"],
+    "domain": "web-application",
     "files": ["database/migrations/2026_01_15_create_orders_index.php"]
   },
   "created_at": "2026-05-10T06:00:00Z"
@@ -477,6 +480,7 @@ When Agent A retrieves a memory from Node B and validates that it works correctl
   "outcome": "Applied cursor pagination pattern. Reduced memory usage from 2.1GB to 180MB on 45k row dataset.",
   "context": {
     "stack": ["php-8.3", "laravel-12", "mysql-8"],
+    "domain": "web-application",
     "files": ["app/Http/Controllers/UserController.php"]
   },
   "created_at": "2026-05-10T07:00:00Z"
@@ -551,6 +555,8 @@ W = ln(1 + A_origin + Σ A_confirming) / (ln(1 + A_origin + Σ A_confirming) + l
 
 The `A_origin` term is the authority of the Node that authored the memory. It acts as **self-evidence** — the origin Node implicitly vouches for its own memory. This solves the cold-start problem: without `A_origin`, a brand-new memory with zero confirmations would have `W = 0`, making `C = 0` and rendering the memory invisible in retrieval results.
 
+**A_origin appears in both W and A_eff.** This is intentional. The compound effect is significant only during cold-start, where it naturally bootstraps memories proportional to source authority. Once external confirmations accumulate, `A_origin`'s contribution to W becomes negligible relative to `Σ A_confirming` — the double-count vanishes asymptotically.
+
 W is asymptotically bounded to [0, 1). As evidence accumulates, W approaches 1.0 but never reaches it, preserving ranking gradients at all scales.
 
 **Cold-start behavior:** A new memory from `laravel/framework` (A = 0.98) with zero confirmations: `W = ln(1.98) / (ln(1.98) + 0 + 1) = 0.683 / 1.683 = 0.406`. Visible immediately. A new memory from `user/experiment-123` (A = 0.044): `W = ln(1.044) / (ln(1.044) + 0 + 1) = 0.043 / 1.043 = 0.041`. Barely visible — needs confirmations to surface.
@@ -576,7 +582,7 @@ Where `t` is the age of the memory in days (current time minus `created_at`) and
 | Class | Half-Life (t_half) | T after 90d | T after 1yr | T after 3yr |
 |-------|--------------------|-------------|-------------|-------------|
 | `version_specific` | 90 days | 0.50 | 0.06 | 0.0002 |
-| `environmental` | 180 days | 0.71 | 0.25 | 0.016 |
+| `environmental` | 180 days | 0.71 | 0.25 | 0.015 |
 | `behavioral` | 365 days | 0.84 | 0.50 | 0.125 |
 | `architectural` | 1095 days | 0.94 | 0.80 | 0.50 |
 
