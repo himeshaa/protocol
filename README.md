@@ -149,7 +149,9 @@ Agent connects and declares its context. Zero friction.
   "result": {
     "server_info": { "name": "himeshaa", "version": "0.1.0" },
     "hmp_version": "0.1.0",
-    "capabilities": ["core", "graph", "node", "perception"]
+    "capabilities": ["core", "graph", "node", "perception"],
+    "embedding_model": "text-embedding-3-small",
+    "embedding_dimensions": 1536
   }
 }
 ```
@@ -172,6 +174,7 @@ Agent asks the Hive Mind for intelligence. The Server searches its index and ret
     "intent": "Fix N+1 query on User model with 10k+ rows",
     "context": {
       "stack": ["php-8.3", "laravel-12", "mysql-8"],
+      "domain": "web-application",
       "files": ["app/Models/User.php"]
     },
     "limit": 5,
@@ -306,7 +309,7 @@ After committing files to `.himeshaa/`, the agent pings the Server to re-index.
   "method": "hmp.node.ping",
   "params": {
     "node": "github.com/org/repo",
-    "commit_sha": "a1b2c3d4e5f6"
+    "commit_sha": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0"
   }
 }
 
@@ -543,20 +546,24 @@ All four factors are bounded to [0, 1]. Therefore C ∈ [0, 1] naturally — no 
 All logarithmic operations in this section MUST use the **natural logarithm** (base *e*, commonly denoted `ln`). Implementations using languages or libraries where `log()` defaults to base 10 MUST use the appropriate natural logarithm function instead.
 
 ```
-W = ln(1 + Σ A_confirming) / (ln(1 + Σ A_confirming) + ln(1 + Σ A_contradicting) + 1)
+W = ln(1 + A_origin + Σ A_confirming) / (ln(1 + A_origin + Σ A_confirming) + ln(1 + Σ A_contradicting) + 1)
 ```
+
+The `A_origin` term is the authority of the Node that authored the memory. It acts as **self-evidence** — the origin Node implicitly vouches for its own memory. This solves the cold-start problem: without `A_origin`, a brand-new memory with zero confirmations would have `W = 0`, making `C = 0` and rendering the memory invisible in retrieval results.
 
 W is asymptotically bounded to [0, 1). As evidence accumulates, W approaches 1.0 but never reaches it, preserving ranking gradients at all scales.
 
+**Cold-start behavior:** A new memory from `laravel/framework` (A = 0.98) with zero confirmations: `W = ln(1.98) / (ln(1.98) + 0 + 1) = 0.683 / 1.683 = 0.406`. Visible immediately. A new memory from `user/experiment-123` (A = 0.044): `W = ln(1.044) / (ln(1.044) + 0 + 1) = 0.043 / 1.043 = 0.041`. Barely visible — needs confirmations to surface.
+
 A node is NOT a vote. Evidence is weighted by the authority of the confirming/contradicting Nodes.
 
-100,000 empty repositories with `A ≈ 0` confirming a memory: `W = ln(1 + 0) / (0 + 0 + 1) = 0`. Worthless.
+100,000 empty repositories with `A ≈ 0` confirming a memory: increases `Σ A_confirming` by ≈ 0. Worthless.
 
 1 contradiction from `laravel/framework` with `A = 0.98`: increases the denominator and suppresses the memory.
 
 This makes Sybil attacks economically infeasible. Authority is derived from real ecosystem gravity — you cannot fake 245,000 dependents.
 
-**Verification vector:** Given Σ A_confirming = 49.0 and Σ A_contradicting = 0, implementations MUST produce `W = 0.7964 ± 0.0001`.
+**Verification vector:** Given A_origin = 0, Σ A_confirming = 49.0 and Σ A_contradicting = 0, implementations MUST produce `W = 0.7964 ± 0.0001`.
 
 ### 9.3. T — Time Decay
 
@@ -579,11 +586,13 @@ Where `t` is the age of the memory in days (current time minus `created_at`) and
 A_eff = max(A_origin, max(A_confirming))
 ```
 
+If no confirmations exist, `A_eff = A_origin`. The `max(A_confirming)` term is only evaluated when at least one confirmation is present.
+
 The effective authority is the **maximum** of the origin Node's authority and the highest authority among all confirming Nodes.
 
 If an anonymous repo (`A = 0.01`) discovers a brilliant pattern, and `laravel/framework` (`A = 0.98`) confirms it, the memory inherits the authority of the confirmer: `A_eff = max(0.01, 0.98) = 0.98`.
 
-Without this, the formula `C = S × W × T × A_origin` would permanently suppress innovation from small repositories — directly violating Principle 1.3.7 ("Weak models become strong"). Authority asphyxiation is mathematically impossible with `A_eff`.
+Without this, the formula `C = S × W × T × A_origin` would permanently suppress innovation from small repositories — directly violating Design Principle 9 ("Weak models become strong"). Authority asphyxiation is mathematically impossible with `A_eff`.
 
 ### 9.5. A — Node Authority
 

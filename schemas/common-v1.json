@@ -19,6 +19,12 @@
           "maxItems": 64,
           "description": "Technology stack identifiers for similarity matching. Use lowercase with version numbers where relevant (e.g., 'php-8.3', 'laravel-12', 'mysql-8'). This field drives the context similarity factor (S) in the confidence formula."
         },
+        "domain": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Domain classification for similarity matching (e.g., 'web-application', 'cli-tool', 'machine-learning'). Used in canonical text construction for the context similarity factor (S)."
+        },
         "files": {
           "type": "array",
           "items": {
