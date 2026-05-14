@@ -522,6 +522,8 @@ Shared type definitions: [`schemas/common-v1.json`](schemas/common-v1.json)
 
 Confidence is calculated **at retrieval time** from the Materialized Index.
 
+**Scope:** The confidence formula applies to **Structured Intelligence** — memories authored by agents in `.himeshaa/memories/`. Latent Intelligence (repository metadata, dependency graphs, code patterns) is served through the Graph Protocol (§6) using graph traversal, dependency proximity, and contributor overlap — mechanisms that do not use this formula. See §9.6.7 for how the Server handles context matching when `.himeshaa/` is absent.
+
 ### 9.1. Formula
 
 ```
@@ -757,6 +759,29 @@ Clamping to `max(0, ...)` ensures S ∈ [0, 1], which:
 - Mean S for known-similar pairs (e.g., memories from the same stack/domain) — SHOULD be > 0.5.
 
 If these thresholds are not met, the embedding model or post-processing pipeline may not be suitable for HMP's context matching requirements.
+
+#### 9.6.7. Latent Intelligence and S
+
+The confidence formula `C = S × W × T × A_eff` applies to **Structured Intelligence** — memories explicitly authored in `.himeshaa/memories/`. These memories have a `content` field and a `context` field, which provide the inputs for canonical text construction (§9.6.1).
+
+**Repositories without `.himeshaa/`** contribute **Latent Intelligence** — knowledge the Server extracts from repository metadata without opt-in. This intelligence is served through different mechanisms:
+
+| Intelligence Type | Source | How It's Accessed | Scoring |
+|-------------------|--------|-------------------|---------|
+| Dependency graph | `composer.json`, `package.json`, `go.mod`, etc. | `hmp.graph.traverse` with `dependencies` strategy | Graph proximity (hops, weight) |
+| Technology context | Languages, topics, README | `hmp.graph.traverse` with `topics` or `similar` strategy | Topic/language overlap |
+| Contributor authority | Commit history, contributor profiles | `hmp.graph.traverse` with `contributors` strategy | Contributor overlap coefficient |
+| Node context | Aggregated repository metadata | `hmp.graph.context` | Authority score (§9.5) |
+
+The confidence formula is intentionally NOT applied to Latent Intelligence. Latent signals lack the three properties that make the formula meaningful:
+
+1. **No W (evidence)** — there are no confirmations or contradictions for a dependency edge.
+2. **No T (time decay)** — a dependency relationship doesn't "decay" like a versioned memory.
+3. **No content to embed** — there is no agent-authored `content` field to compute S against.
+
+Latent Intelligence provides **structural context** (who depends on whom, what technologies coexist). Structured Intelligence provides **semantic knowledge** (what patterns work, what mistakes to avoid). The confidence formula scores semantic knowledge. Graph traversal navigates structural context. Both layers are valuable. Neither requires the other.
+
+**Hybrid queries:** When an agent sends `hmp.memory.request`, the Server SHOULD use Latent Intelligence to *discover* relevant Nodes (via dependency proximity and technology overlap) and then retrieve Structured Intelligence (memories) from those Nodes. In this workflow, Latent Intelligence acts as the **retrieval scope** and Structured Intelligence provides the **scored results**. The returned memories carry confidence scores computed by the formula; the graph traversal that found them does not.
 
 ## 10. Extensions
 
