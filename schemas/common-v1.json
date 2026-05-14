@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://himeshaa.dev/schema/common-v1.json",
+  "$id": "https://himeshaa.com/schema/common-v1.json",
   "title": "HMP Common Definitions",
   "description": "Shared type definitions for the Himeshaa Protocol v0.1.0 file schemas. These definitions are referenced by hmp-v1.json, memory-v1.json, contradiction-v1.json, and confirmation-v1.json via external $ref.",
   "definitions": {

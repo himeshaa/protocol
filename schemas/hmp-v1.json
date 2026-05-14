@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://himeshaa.dev/schema/hmp-v1.json",
+  "$id": "https://himeshaa.com/schema/hmp-v1.json",
   "title": "HMP Node Declaration",
   "description": "Declares a repository as an HMP Declared Node, enabling priority indexing and higher trust weight in the Hive Mind. This file MUST be located at .himeshaa/hmp.json in the repository root.",
   "type": "object",

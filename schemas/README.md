@@ -18,11 +18,11 @@ All schemas use [JSON Schema draft-07](http://json-schema.org/draft-07/schema#) 
 
 ## Canonical URIs
 
-Schemas are published at `https://himeshaa.dev/schema/{name}.json`. Files in `.himeshaa/` reference these URIs via the `$schema` field:
+Schemas are published at `https://himeshaa.com/schema/{name}.json`. Files in `.himeshaa/` reference these URIs via the `$schema` field:
 
 ```json
 {
-  "$schema": "https://himeshaa.dev/schema/memory-v1.json",
+  "$schema": "https://himeshaa.com/schema/memory-v1.json",
   "id": "mem-001",
   "content": "..."
 }

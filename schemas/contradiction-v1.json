@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://himeshaa.dev/schema/contradiction-v1.json",
+  "$id": "https://himeshaa.com/schema/contradiction-v1.json",
   "title": "HMP Contradiction",
   "description": "A formal dispute of an existing memory from another Node. File: .himeshaa/contradictions/{id}.json",
   "type": "object",

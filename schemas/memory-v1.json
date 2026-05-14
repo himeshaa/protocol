@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://himeshaa.dev/schema/memory-v1.json",
+  "$id": "https://himeshaa.com/schema/memory-v1.json",
   "title": "HMP Memory",
   "description": "The atomic unit of learned experience in the Hive Mind. File: .himeshaa/memories/{id}.json",
   "type": "object",

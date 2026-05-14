@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://himeshaa.dev/schema/confirmation-v1.json",
+  "$id": "https://himeshaa.com/schema/confirmation-v1.json",
   "title": "HMP Confirmation",
   "description": "Validates that an existing memory from another Node works correctly in this context. File: .himeshaa/confirmations/{id}.json",
   "type": "object",
