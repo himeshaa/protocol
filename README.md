@@ -116,6 +116,8 @@ Git is the **Write Model**. The Server's Materialized Index is the **Read Model*
 
 The Materialized Index is NOT a database. It is a cache. If the Server dies, it is rebuilt entirely from Git forges. No data is lost because no data lives in the Server.
 
+**Statelessness scope:** The Server's persistent state is limited to the Materialized Index (an ephemeral, rebuildable cache). Operational state — such as `hmp.node.ping` retry queues, rate limit counters, and signal aggregation buffers — is transient and MAY be lost on restart without compromising correctness. The distinction is that the Materialized Index is the **Read Model** (derivable from Git); operational state is **coordination overhead** (lossy by design).
+
 ### 3.2. Transports
 
 | Transport | Path | Protocol |
@@ -160,7 +162,7 @@ Agent connects and declares its context. Zero friction.
 
 All Core RPCs are **read-only**. They query the Server's Materialized Index. No RPC in this section mutates state.
 
-**Pagination:** All RPCs returning collections MUST support cursor-based pagination. Requests accept `limit` (default: 50, hard cap: 100) and `cursor` (opaque string, `null` for first page). Responses include `next_cursor` and `has_more`.
+**Pagination:** All RPCs returning durable collections MUST support cursor-based pagination. Requests accept `limit` (default: 50, hard cap: 100) and `cursor` (opaque string, `null` for first page). Responses include `next_cursor` and `has_more`. Ephemeral data RPCs (e.g., `hmp.signal.poll`) MAY use timestamp-based filtering instead of cursor-based pagination, since their underlying data is transient and cursor stability cannot be guaranteed across TTL evictions.
 
 ### 5.1. `hmp.memory.request`
 
@@ -190,7 +192,7 @@ Agent asks the Hive Mind for intelligence. The Server searches its index and ret
         "id": "mem-a1b2",
         "content": "Eager loading on User→orders causes OOM beyond 10k rows. Use chunked queries with cursor pagination.",
         "confidence": 0.91,
-        "status": "verified",
+        "retrieval_status": "corroborated",
         "class": "architectural",
         "source_node": "github.com/other-org/similar-app",
         "evidence": {
@@ -205,6 +207,15 @@ Agent asks the Hive Mind for intelligence. The Server searches its index and ret
   }
 }
 ```
+
+**`retrieval_status`** is a Server-computed field indicating the memory's evidence posture. It is NOT stored in the memory file — it is derived at retrieval time from the confirmation/contradiction graph.
+
+| Status | Condition |
+|--------|-----------|
+| `nascent` | Zero confirmations and zero contradictions |
+| `corroborated` | `Σ A_confirming > Σ A_contradicting` and at least one confirmation exists |
+| `disputed` | `Σ A_contradicting ≥ Σ A_confirming` and at least one contradiction exists |
+| `unanimous` | `Σ A_confirming > 0` and `Σ A_contradicting = 0` and at least 3 confirmations exist |
 
 ## 6. Graph Protocol — Navigation
 
@@ -465,6 +476,8 @@ When Agent A discovers that a memory from Node B is wrong in its context, Agent 
 
 The `target` field uses a URN (see §8.5). The `target_blob_sha` is REQUIRED — it anchors the endorsement to the exact content of the target memory at the time of contradiction. The field accepts both SHA-1 (40 hex characters) and SHA-256 (64 hex characters) to support the Git 3.0 hash transition. The Server MUST ignore contradictions where the current blob SHA of the target memory diverges from `target_blob_sha`. This prevents bait-and-switch attacks where a Node silently edits a memory after receiving endorsements.
 
+**Self-endorsement prohibition:** The Server MUST ignore contradictions where the `node_uri` component of the `target` URN, after lowercase normalization, matches the `node_uri` of the Node that authored the contradiction file. A Node contradicting its own memory has no epistemic value — the Node should simply edit or delete the memory.
+
 JSON Schema: [`schemas/contradiction-v1.json`](schemas/contradiction-v1.json)
 
 ### 8.4. `.himeshaa/confirmations/{id}.json` — Confirmation
@@ -487,7 +500,11 @@ When Agent A retrieves a memory from Node B and validates that it works correctl
 }
 ```
 
-The `target_blob_sha` is REQUIRED — same rationale as contradictions. The Server MUST ignore confirmations where the target memory's current blob SHA diverges from the referenced SHA. If the target memory is edited, all existing confirmations and contradictions become void and the memory restarts its evidence lifecycle.
+The `target_blob_sha` is REQUIRED — same rationale as contradictions. The Server MUST ignore confirmations where the target memory's current blob SHA diverges from the referenced SHA.
+
+**Self-endorsement prohibition:** The Server MUST ignore confirmations where the `node_uri` component of the `target` URN, after lowercase normalization, matches the `node_uri` of the Node that authored the confirmation file. Self-confirmation is a tautology — it would allow any Node to inflate its own `Σ A_confirming` without external validation.
+
+**Evidence lifecycle on edit:** If the target memory is edited (blob SHA changes), existing confirmations and contradictions referencing the old SHA become void and the memory restarts its evidence lifecycle. To prevent evidence-wiping abuse — where a Node trivially edits a memory to invalidate unfavorable contradictions — Servers SHOULD apply a **cooling period**: if a memory is edited within 7 days of receiving a new contradiction, the Server SHOULD carry forward existing contradictions at 50% weight (`0.5 × A_contradicting`) into the new evidence lifecycle. This makes evidence-wiping costly without preventing legitimate corrections.
 
 Without confirmations, the `Σ A_confirming` in the evidence weight formula (§9.2) would be permanently static. Confirmations are the explicit edges in the epistemic graph that make consensus computable from Git.
 
@@ -524,6 +541,20 @@ URNs are the primary keys in the Materialized Index.
 **Rename Resolution:** Forges allow repository and user renames, which would break URN-based pointers. Servers MUST resolve HTTP 301 redirects from the forge API during indexing, silently converging all URNs to the repository's current canonical name. Alternatively, implementations MAY use the forge's immutable internal ID as the `node_uri` component to achieve permanent referential integrity regardless of renames.
 
 Shared type definitions: [`schemas/common-v1.json`](schemas/common-v1.json)
+
+### 8.6. Schema Versioning
+
+Schema files use a version suffix in their `$id` (e.g., `memory-v1.json`). Schema versions are independent of the protocol version and follow these rules:
+
+| Change Type | Schema Version Impact | Example |
+|-------------|----------------------|---------|
+| Additive (new optional field) | No increment — remains `v1` | Adding `_meta` to `memory-v1.json` |
+| Restrictive (new required field, type change) | Increment — becomes `v2` | Making `domain` required in `memory_context` |
+| Destructive (field removal, rename) | Increment — becomes `v2` | Renaming `content` to `body` |
+
+Servers MUST support all schema versions referenced by the current protocol specification. When a new schema version is introduced, the previous version MUST remain supported for at least one full minor protocol version cycle (e.g., if `memory-v2.json` is introduced in HMP 0.3.0, `memory-v1.json` MUST remain supported through HMP 0.4.0).
+
+Agents SHOULD write files using the latest schema version. The `$schema` field in each file declares which version it conforms to, enabling the Server to apply the correct validation rules.
 
 ## 9. Confidence Model
 
@@ -569,7 +600,16 @@ A node is NOT a vote. Evidence is weighted by the authority of the confirming/co
 
 This makes Sybil attacks economically infeasible. Authority is derived from real ecosystem gravity — you cannot fake 245,000 dependents.
 
-**Verification vector:** Given A_origin = 0, Σ A_confirming = 49.0 and Σ A_contradicting = 0, implementations MUST produce `W = 0.7964 ± 0.0001`.
+**Verification vectors:**
+
+| # | A_origin | Σ A_confirming | Σ A_contradicting | Expected W |
+|---|----------|----------------|-------------------|------------|
+| 1 | 0 | 49.0 | 0 | `0.7964 ± 0.0001` |
+| 2 | 0.98 | 5.0 | 1.0 | `0.6674 ± 0.0001` |
+
+Vector 1 validates the baseline formula. Vector 2 validates the `A_origin` inclusion — without `A_origin`, the result would be `0.6536`, which is outside the tolerance band.
+
+Derivation of Vector 2: `W = ln(1 + 0.98 + 5.0) / (ln(1 + 0.98 + 5.0) + ln(1 + 1.0) + 1) = ln(6.98) / (ln(6.98) + ln(2) + 1) = 1.9433 / (1.9433 + 0.6931 + 1) = 1.9433 / 2.9130 = 0.6674`.
 
 ### 9.3. T — Time Decay
 
@@ -851,7 +891,7 @@ Agent reports a raw observation to the Server.
 }
 ```
 
-The `type` field MUST be one of: `error_spike`, `deprecation`, `security_advisory`, `performance_regression`, `dependency_update`, `pattern_emergence`. Implementations MAY extend this enum via the `_meta` field.
+The `type` field MUST be one of: `error_spike`, `deprecation`, `security_advisory`, `performance_regression`, `dependency_update`, `pattern_emergence`. Implementations MAY define custom signal types by prefixing them with `x-` (e.g., `x-cost-anomaly`, `x-latency-spike`). Servers MUST accept `x-` prefixed types without error but MAY choose not to aggregate them into broadcasts.
 
 #### 10.1.2. `hmp.signal.broadcast`
 
@@ -902,9 +942,13 @@ Agent polls for queued alerts when WebSocket is not available.
         "affected_nodes": 12,
         "expires_at": "2026-05-10T06:00:00Z"
       }
-    ]
+    ],
+    "poll_timestamp": "2026-05-10T05:45:00Z"
   }
 }
+```
+
+`hmp.signal.poll` uses **timestamp-based filtering** (`since` / `poll_timestamp`) instead of cursor-based pagination. Alerts are ephemeral (TTL-bound) and evict continuously, making cursor stability impossible. The `poll_timestamp` field in the response indicates the Server's current time — the agent SHOULD use this value as the `since` parameter in subsequent polls to avoid gaps or duplicates caused by clock skew.
 ```
 
 **Ephemeral State Isolation:** Signals are Ephemeral State. They exist exclusively in the Server's RAM (Pub/Sub buffers), evaporate on Server restart, carry a strict TTL (default: 1 hour), and MUST NEVER interact with the Confidence formula (`C`) or the Durable Knowledge that lives in Git. Signals are real-time situational awareness; memories are permanent knowledge. The two systems are formally isolated.
@@ -966,6 +1010,8 @@ Cross-domain synthesis: the Server aggregates memories from multiple Nodes to pr
 | `adversarial` | Explicitly seek contradictions. Returns the strongest arguments for and against each approach. |
 
 The `synthesis` field is Server-generated and MAY use an LLM for summarization. The `sources` array provides full provenance — agents can independently verify every claim by reading the referenced memories via `hmp.node.memory.read`.
+
+**Infrastructure note:** Servers implementing the `reasoning` extension operate beyond the stateless indexer role described in §3.1. Synthesis generation MAY require GPU resources, external LLM API access, or dedicated inference infrastructure. The `reasoning` capability SHOULD only be declared by Servers provisioned for this workload. The core indexer guarantees (ephemeral cache, rebuildable from Git) remain unaffected — `reasoning` is a compute-intensive overlay, not a persistence requirement.
 
 ### 10.3. Introspection — `hmp.network.*`
 

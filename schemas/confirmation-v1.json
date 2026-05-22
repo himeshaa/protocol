@@ -19,5 +19,6 @@
     "created_at": { "$ref": "common-v1.json#/definitions/utc_timestamp" },
     "_meta": { "$ref": "common-v1.json#/definitions/meta" }
   },
-  "required": ["id", "target", "target_blob_sha", "outcome", "context", "created_at"]
+  "required": ["id", "target", "target_blob_sha", "outcome", "context", "created_at"],
+  "additionalProperties": false
 }

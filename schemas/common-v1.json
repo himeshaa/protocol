@@ -23,7 +23,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 128,
-          "description": "Domain classification for similarity matching (e.g., 'web-application', 'cli-tool', 'machine-learning'). Used in canonical text construction for the context similarity factor (S)."
+          "description": "Domain classification for similarity matching (e.g., 'web-application', 'cli-tool', 'machine-learning'). Used in canonical text construction for the context similarity factor (S). Memories SHOULD include a domain when the knowledge is domain-specific. Omitting domain is appropriate only for universally applicable knowledge (e.g., 'git rebase --autostash preserves uncommitted changes')."
         },
         "files": {
           "type": "array",
@@ -36,7 +36,8 @@
           "description": "Relevant file paths within the repository where this knowledge was observed or applies."
         }
       },
-      "required": ["stack"]
+      "required": ["stack"],
+      "additionalProperties": false
     },
     "hmp_urn": {
       "type": "string",

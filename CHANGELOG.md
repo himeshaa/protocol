@@ -14,12 +14,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub repository metadata configured (description, homepage, topics).
 - Protocol reframed as forge-agnostic: "GitHub IS the Hive Mind" → "Git IS the source of truth". GitHub is the first and largest forge, but GitLab, Gitea, Codeberg, and self-hosted forges are equally valid. All 22 GitHub-locked references corrected.
 - Core narrative corrected: `.himeshaa/` is a reward (priority indexing, higher trust), not a prerequisite. The Hive Mind exists on day zero with zero `.himeshaa/` directories.
+- CHANGELOG W formula corrected to include `A_origin` term, matching the canonical formula in §9.2 (`ln(1 + A_origin + Σ A_confirming)` instead of `ln(1 + Σ A_c)`).
+- `hmp.memory.request` response example: `"status": "verified"` renamed to `"retrieval_status": "corroborated"` with formal definition of the four retrieval statuses (`nascent`, `corroborated`, `disputed`, `unanimous`).
+- Signal type extensibility: replaced incorrect `_meta` reference with `x-` prefix convention for custom signal types.
+- `hmp.signal.poll` response: added `poll_timestamp` field for clock-skew-safe sequential polling.
+- §3.1 CQRS Model: clarified statelessness scope — operational state (ping queues, rate limit counters) is transient and lossy by design, distinct from the rebuildable Materialized Index.
 
 ### Added
 
 - §1.1: "Two Layers of Intelligence" section — formalizes Latent Intelligence (code, deps, contributors) vs. Structured Intelligence (`.himeshaa/` memories) as distinct layers of the Hive Mind.
 - §1.4: Two new design principles — "The Hive Mind exists on day zero" and "Forge-agnostic" — codifying that any public repo contributes without opt-in and that HMP is not tied to any specific Git forge.
 - §2.2: "Latent Intelligence" and "Structured Intelligence" as formal glossary terms.
+- §8.3: **Self-endorsement prohibition** — Server MUST ignore contradictions where the target URN references the same Node that authored the file.
+- §8.4: **Self-endorsement prohibition** — Server MUST ignore confirmations where the target URN references the same Node that authored the file.
+- §8.4: **Evidence lifecycle cooling period** — Servers SHOULD carry forward contradictions at 50% weight when a memory is edited within 7 days of receiving a new contradiction, preventing evidence-wiping abuse.
+- §8.6: **Schema Versioning** — formal rules for when schema versions increment (additive = no change, restrictive/destructive = new version), multi-version support requirements, and deprecation cycle.
+- §5.1: Formal `retrieval_status` enum with four defined values and computation rules based on the confirmation/contradiction graph.
+- §5: Pagination mandate refined: "durable collections" use cursor-based pagination; ephemeral data RPCs (e.g., `hmp.signal.poll`) MAY use timestamp-based filtering.
+- §9.2: Second verification vector (A_origin = 0.98, Σ A_confirming = 5.0, Σ A_contradicting = 1.0 → W = 0.6674) to validate A_origin inclusion.
+- §10.2: Infrastructure note — Servers implementing `reasoning` extension MAY require GPU/LLM resources, operating beyond the stateless indexer role.
+- `additionalProperties: false` added to all JSON Schemas (`memory-v1.json`, `confirmation-v1.json`, `contradiction-v1.json`, `hmp-v1.json`, `common-v1.json#memory_context`) to prevent DoS via arbitrary fields.
+- `common-v1.json`: domain field description updated with SHOULD guidance for when to include domain in memories.
 - §9.5: Formal Node Authority (A) formula with weighted components (D, K, F, G), log-normalization, reference ceilings, declaration boost, and verification vectors.
 - §9.6: Context Similarity (S) comprehensively rewritten with 6 subsections: §9.6.1 Canonical Text Construction with SHA-256 verification vector, §9.6.2 Embedding Requirements (L2 normalization, `embedding_dimensions`, floating-point tolerance), §9.6.3 Anisotropy Mitigation (mean-centering SHOULD, detection threshold), §9.6.4 Cross-Server Comparability (S values are server-local, Pulse syncs raw data not scores), §9.6.5 Clamping Rationale (domain-specific justification), §9.6.6 Implementation Notes (two-stage retrieval, quality validation).
 - §9.6.7: Latent Intelligence and S — clarifies that confidence formula applies only to Structured Intelligence (memories). Latent Intelligence uses graph traversal, not the confidence formula. Documents hybrid query pattern where latent acts as retrieval scope, structured provides scored results.
@@ -53,9 +68,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - URN validation regex (RFC 8141 / RFC 3986 compliant character class).
 - URN case normalization rule: `node_uri` MUST be lowercased before storage and comparison.
 - Confidence model with authority-weighted evidence and Sybil-resistant scoring.
-- Asymptotically normalized W formula: `W = ln(1 + Σ A_c) / (ln(1 + Σ A_c) + ln(1 + Σ A_x) + 1)`.
+- Asymptotically normalized W formula: `W = ln(1 + A_origin + Σ A_confirming) / (ln(1 + A_origin + Σ A_confirming) + ln(1 + Σ A_contradicting) + 1)`.
 - Explicit time decay formula: `T = 0.5 ^ (t / t_half)` with class-specific half-life table.
-- Verification vector for W calculation (Σ A_confirming = 49.0 → W = 0.7964 ± 0.0001).
+- Verification vectors for W calculation: (1) A_origin = 0, Σ A_confirming = 49.0 → W = 0.7964; (2) A_origin = 0.98, Σ A_confirming = 5.0, Σ A_contradicting = 1.0 → W = 0.6674.
 - Mandated natural logarithm (base e / ln) for all logarithmic operations.
 - `cursor` parameter to `hmp.memory.request` for pagination consistency.
 - Content length guidance: `content` SHOULD NOT exceed 32,768 characters.

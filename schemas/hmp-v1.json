@@ -73,5 +73,6 @@
       "$ref": "common-v1.json#/definitions/meta"
     }
   },
-  "required": ["hmp_version", "context"]
+  "required": ["hmp_version", "context"],
+  "additionalProperties": false
 }
