@@ -30,7 +30,7 @@ Schemas are published at `https://himeshaa.com/schema/{name}.json`. Files in `.h
 
 ## Forward Compatibility
 
-Schemas intentionally omit `additionalProperties: false` to enable forward-compatible evolution. A v0.1.0 validator will accept files containing fields introduced in v0.2.0.
+All schemas enforce `additionalProperties: false` to prevent denial-of-service via arbitrary field injection. This means schema versions are **strict** — a v0.1.0 validator will reject files containing fields introduced in v0.2.0. New fields (even optional ones) require a schema version increment as defined in §8.6 of the protocol specification. This trade-off prioritizes security and implementation determinism over forward compatibility.
 
 ## Security Constraints
 

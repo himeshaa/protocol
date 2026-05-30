@@ -19,15 +19,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Signal type extensibility: replaced incorrect `_meta` reference with `x-` prefix convention for custom signal types.
 - `hmp.signal.poll` response: added `poll_timestamp` field for clock-skew-safe sequential polling.
 - §3.1 CQRS Model: clarified statelessness scope — operational state (ping queues, rate limit counters) is transient and lossy by design, distinct from the rebuildable Materialized Index.
+- `schemas/README.md`: corrected forward compatibility claim — schemas enforce `additionalProperties: false` (strict validation, not permissive). Documentation now accurately reflects the security-first design decision.
+- §5.1 `retrieval_status`: added explicit precedence order (`unanimous > corroborated > disputed > nascent`). Clarified `unanimous` requires 3 distinct confirmation files from 3 distinct Nodes. Resolves ambiguity where a memory could match both `unanimous` and `corroborated`.
+- §8.4: cooling period temporal anchor changed from "receiving a new contradiction" to "the `created_at` timestamp of any existing contradiction" — ensures deterministic, stateless evaluation consistent with Design Principle 3.
+- §10.1: removed stray Markdown code fence between `hmp.signal.poll` section and Ephemeral State Isolation paragraph.
+- §10.4.4: `pulse.sync` tie-breaking rule added — when two deltas share identical timestamps, the delta from the lexicographically lower `server_id` wins.
 
 ### Added
 
 - §1.1: "Two Layers of Intelligence" section — formalizes Latent Intelligence (code, deps, contributors) vs. Structured Intelligence (`.himeshaa/` memories) as distinct layers of the Hive Mind.
 - §1.4: Two new design principles — "The Hive Mind exists on day zero" and "Forge-agnostic" — codifying that any public repo contributes without opt-in and that HMP is not tied to any specific Git forge.
 - §2.2: "Latent Intelligence" and "Structured Intelligence" as formal glossary terms.
+- §8.1: clarification note distinguishing Node Declaration context (`languages` + `domain` required) from `memory_context` (`stack` only required).
 - §8.3: **Self-endorsement prohibition** — Server MUST ignore contradictions where the target URN references the same Node that authored the file.
+- §8.3: **Target type constraint** — `target` URN in contradiction files MUST reference `memory` type. Contradictions of contradictions/confirmations are undefined and MUST be ignored.
 - §8.4: **Self-endorsement prohibition** — Server MUST ignore confirmations where the target URN references the same Node that authored the file.
+- §8.4: **Target type constraint** — `target` URN in confirmation files MUST reference `memory` type. Confirmations of confirmations/contradictions are undefined and MUST be ignored.
 - §8.4: **Evidence lifecycle cooling period** — Servers SHOULD carry forward contradictions at 50% weight when a memory is edited within 7 days of receiving a new contradiction, preventing evidence-wiping abuse.
+- §8.4: `outcome` field limit rationale documented — 16,384 chars vs 32,768 for contradiction `evidence`.
+- §8.5: **Port Exclusion** rule — `node_uri` MUST NOT include port numbers to prevent parsing ambiguity.
+- §7.3: note that `hmp.node.memory.read` returns raw Git content without Server-computed fields.
+- §9.2: **Zero-authority edge case** documented — `A = 0` produces `C = 0` but memories remain discoverable via `hmp.node.memory.list`.
+- §9.5: **Boundedness** note — `A ∈ [0, 1]` naturally guaranteed by component bounds. No clamping required.
 - §8.6: **Schema Versioning** — formal rules for when schema versions increment (additive = no change, restrictive/destructive = new version), multi-version support requirements, and deprecation cycle.
 - §5.1: Formal `retrieval_status` enum with four defined values and computation rules based on the confirmation/contradiction graph.
 - §5: Pagination mandate refined: "durable collections" use cursor-based pagination; ephemeral data RPCs (e.g., `hmp.signal.poll`) MAY use timestamp-based filtering.

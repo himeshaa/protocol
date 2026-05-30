@@ -210,12 +210,14 @@ Agent asks the Hive Mind for intelligence. The Server searches its index and ret
 
 **`retrieval_status`** is a Server-computed field indicating the memory's evidence posture. It is NOT stored in the memory file — it is derived at retrieval time from the confirmation/contradiction graph.
 
-| Status | Condition |
-|--------|-----------|
-| `nascent` | Zero confirmations and zero contradictions |
-| `corroborated` | `Σ A_confirming > Σ A_contradicting` and at least one confirmation exists |
-| `disputed` | `Σ A_contradicting ≥ Σ A_confirming` and at least one contradiction exists |
-| `unanimous` | `Σ A_confirming > 0` and `Σ A_contradicting = 0` and at least 3 confirmations exist |
+| Status | Condition | Precedence |
+|--------|-----------|------------|
+| `unanimous` | At least 3 distinct confirmation files from 3 distinct Nodes exist AND `Σ A_contradicting = 0` | Highest |
+| `corroborated` | `Σ A_confirming > Σ A_contradicting` and at least one confirmation exists | |
+| `disputed` | `Σ A_contradicting ≥ Σ A_confirming` and at least one contradiction exists | |
+| `nascent` | Zero confirmations and zero contradictions | Lowest |
+
+**Precedence:** When a memory satisfies multiple conditions (e.g., both `unanimous` and `corroborated`), the Server MUST return the status with the highest precedence. The "3 distinct confirmation files" condition in `unanimous` refers to the count of confirmation files from 3 distinct Nodes — not the weighted sum `Σ A_confirming`.
 
 ## 6. Graph Protocol — Navigation
 
@@ -400,13 +402,17 @@ Agent reads a specific memory from any Node.
 }
 ```
 
+`hmp.node.memory.read` returns the raw memory content as stored in Git. It does NOT include Server-computed fields (`confidence`, `retrieval_status`, `evidence`) — those are only available via `hmp.memory.request`, which applies the confidence formula (§9) at retrieval time.
+
 ## 8. File Schemas
 
 All state mutations happen via Git commits to `.himeshaa/`. The protocol defines the JSON schemas. The agent formats and commits the files. The Server reads them.
 
 ### 8.1. `.himeshaa/hmp.json` — Node Declaration
 
-The `context.languages` and `context.domain` fields are REQUIRED. All other context fields are OPTIONAL.
+The `context.languages` and `context.domain` fields are REQUIRED in the Node Declaration. All other context fields are OPTIONAL.
+
+**Note:** The Node Declaration context (this schema) differs from the `memory_context` used in memories, contradictions, and confirmations (§8.2–§8.4). In `memory_context`, only the `stack` field is REQUIRED — `domain` and `files` are OPTIONAL. This asymmetry is intentional: Node Declarations describe the repository's permanent identity, while memory context describes the situational scope of a specific observation.
 
 JSON Schema: [`schemas/hmp-v1.json`](schemas/hmp-v1.json)
 
@@ -478,6 +484,8 @@ The `target` field uses a URN (see §8.5). The `target_blob_sha` is REQUIRED —
 
 **Self-endorsement prohibition:** The Server MUST ignore contradictions where the `node_uri` component of the `target` URN, after lowercase normalization, matches the `node_uri` of the Node that authored the contradiction file. A Node contradicting its own memory has no epistemic value — the Node should simply edit or delete the memory.
 
+**Target type constraint:** The `target` URN in contradiction files MUST reference an object of type `memory`. Contradictions targeting other contradictions or confirmations are semantically undefined and MUST be ignored by the Server. A Node that disagrees with a contradiction should author its own confirmation of the original memory instead.
+
 JSON Schema: [`schemas/contradiction-v1.json`](schemas/contradiction-v1.json)
 
 ### 8.4. `.himeshaa/confirmations/{id}.json` — Confirmation
@@ -500,11 +508,13 @@ When Agent A retrieves a memory from Node B and validates that it works correctl
 }
 ```
 
-The `target_blob_sha` is REQUIRED — same rationale as contradictions. The Server MUST ignore confirmations where the target memory's current blob SHA diverges from the referenced SHA.
+The `target_blob_sha` is REQUIRED — same rationale as contradictions. The Server MUST ignore confirmations where the target memory's current blob SHA diverges from the referenced SHA. The `outcome` field has a 16,384 character limit — half the 32,768 character limit of memory `content` and contradiction `evidence` fields. Confirmations document a positive result ("this worked"), which typically requires less explanation than contradictions, which must argue why existing knowledge is incorrect.
 
 **Self-endorsement prohibition:** The Server MUST ignore confirmations where the `node_uri` component of the `target` URN, after lowercase normalization, matches the `node_uri` of the Node that authored the confirmation file. Self-confirmation is a tautology — it would allow any Node to inflate its own `Σ A_confirming` without external validation.
 
-**Evidence lifecycle on edit:** If the target memory is edited (blob SHA changes), existing confirmations and contradictions referencing the old SHA become void and the memory restarts its evidence lifecycle. To prevent evidence-wiping abuse — where a Node trivially edits a memory to invalidate unfavorable contradictions — Servers SHOULD apply a **cooling period**: if a memory is edited within 7 days of receiving a new contradiction, the Server SHOULD carry forward existing contradictions at 50% weight (`0.5 × A_contradicting`) into the new evidence lifecycle. This makes evidence-wiping costly without preventing legitimate corrections.
+**Target type constraint:** The `target` URN in confirmation files MUST reference an object of type `memory`. Confirmations targeting other confirmations or contradictions are semantically undefined and MUST be ignored by the Server.
+
+**Evidence lifecycle on edit:** If the target memory is edited (blob SHA changes), existing confirmations and contradictions referencing the old SHA become void and the memory restarts its evidence lifecycle. To prevent evidence-wiping abuse — where a Node trivially edits a memory to invalidate unfavorable contradictions — Servers SHOULD apply a **cooling period**: if a memory is edited within 7 days of the `created_at` timestamp of any existing contradiction targeting that memory's previous blob SHA, the Server SHOULD carry forward existing contradictions at 50% weight (`0.5 × A_contradicting`) into the new evidence lifecycle. This uses the contradiction's Git-committed `created_at` (not the Server's indexing timestamp) to ensure deterministic, stateless evaluation consistent with Design Principle 3. This makes evidence-wiping costly without preventing legitimate corrections.
 
 Without confirmations, the `Σ A_confirming` in the evidence weight formula (§9.2) would be permanently static. Confirmations are the explicit edges in the epistemic graph that make consensus computable from Git.
 
@@ -537,6 +547,8 @@ urn:hmp:{node_uri}:{object_type}:{object_id}
 URNs are the primary keys in the Materialized Index.
 
 **Case Normalization:** The `node_uri` component MUST be normalized to lowercase before storage and comparison. Implementations MUST perform case-insensitive matching on `node_uri` because Git forges (GitHub, GitLab, Gitea) treat repository paths case-insensitively.
+
+**Port Exclusion:** The `node_uri` component MUST NOT include port numbers. If a forge uses a non-standard port (e.g., `gitea.example.com:3000`), the port MUST be resolved externally by the Server configuration — it is not part of the URN addressing scheme. Including port numbers would create parsing ambiguity with the `:` separator between `node_uri` and `object_type`.
 
 **Rename Resolution:** Forges allow repository and user renames, which would break URN-based pointers. Servers MUST resolve HTTP 301 redirects from the forge API during indexing, silently converging all URNs to the repository's current canonical name. Alternatively, implementations MAY use the forge's immutable internal ID as the `node_uri` component to achieve permanent referential integrity regardless of renames.
 
@@ -591,6 +603,8 @@ The `A_origin` term is the authority of the Node that authored the memory. It ac
 W is asymptotically bounded to [0, 1). As evidence accumulates, W approaches 1.0 but never reaches it, preserving ranking gradients at all scales.
 
 **Cold-start behavior:** A new memory from `laravel/framework` (A = 0.98) with zero confirmations: `W = ln(1.98) / (ln(1.98) + 0 + 1) = 0.683 / 1.683 = 0.406`. Visible immediately. A new memory from `user/experiment-123` (A = 0.044): `W = ln(1.044) / (ln(1.044) + 0 + 1) = 0.043 / 1.043 = 0.041`. Barely visible — needs confirmations to surface.
+
+**Zero-authority edge case:** A Node with `A = 0` (zero dependents, zero contributors, zero commits in the trailing 365 days, zero graph centrality) produces `W = 0`, making `C = 0` — the memory is invisible via `hmp.memory.request`. This is intentional: a repository with zero ecosystem presence has not earned retrieval priority. However, these memories remain discoverable via `hmp.node.memory.list` and `hmp.node.memory.read`, allowing other agents to find, validate, and confirm them. Once a non-zero-authority Node confirms the memory, `A_eff = max(0, A_confirmer) > 0`, and the memory surfaces in retrieval results. This preserves Design Principle 9 ("Weak models become strong") through a meritocratic bootstrapping path: discovery → confirmation → visibility.
 
 A node is NOT a vote. Evidence is weighted by the authority of the confirming/contradicting Nodes.
 
@@ -683,6 +697,8 @@ Reference ceilings are protocol constants. Changing them requires a minor versio
 | `user/experiment-123` (undeclared) | dependents=0, contributors=1, commits_365d=10, G=0.0, B=0.8 | `0.044 ± 0.002` |
 
 Memories from `laravel/framework` carry more authority than memories from `user/experiment-123`.
+
+**Boundedness:** Since all components (D, K, F, G) are individually bounded to [0, 1] via `min(1, ...)`, all weights sum to 1.0 (`w_d + w_c + w_f + w_g = 1.0`), and `B ∈ {0.8, 1.0}`, it follows that `A ∈ [0, 1]` naturally — no clamping is required.
 
 ### 9.6. S — Context Similarity
 
@@ -949,7 +965,6 @@ Agent polls for queued alerts when WebSocket is not available.
 ```
 
 `hmp.signal.poll` uses **timestamp-based filtering** (`since` / `poll_timestamp`) instead of cursor-based pagination. Alerts are ephemeral (TTL-bound) and evict continuously, making cursor stability impossible. The `poll_timestamp` field in the response indicates the Server's current time — the agent SHOULD use this value as the `since` parameter in subsequent polls to avoid gaps or duplicates caused by clock skew.
-```
 
 **Ephemeral State Isolation:** Signals are Ephemeral State. They exist exclusively in the Server's RAM (Pub/Sub buffers), evaporate on Server restart, carry a strict TTL (default: 1 hour), and MUST NEVER interact with the Confidence formula (`C`) or the Durable Knowledge that lives in Git. Signals are real-time situational awareness; memories are permanent knowledge. The two systems are formally isolated.
 
@@ -1123,7 +1138,7 @@ Announcements are sent at startup and every 5 minutes thereafter. A peer that fa
 }
 ```
 
-Sync is pull-based. Each Server maintains a `server_head` timestamp representing the latest known state. Peers request deltas since their last known head. Conflicts are resolved by `timestamp` ordering — last-write-wins at the index level. This is safe because the index is ephemeral; the authoritative state always lives in Git.
+Sync is pull-based. Each Server maintains a `server_head` timestamp representing the latest known state. Peers request deltas since their last known head. Conflicts are resolved by `timestamp` ordering — last-write-wins at the index level. When two deltas share identical timestamps, the delta from the Server with the lexicographically lower `server_id` wins (deterministic tie-breaking). This is safe because the index is ephemeral; the authoritative state always lives in Git.
 
 #### 10.4.5. Trust Between Peers
 
