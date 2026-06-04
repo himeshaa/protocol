@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- §9.2: **Arithmetic error in W verification vector #2** — derivation incorrectly computed `1.9433 + 0.6931 + 1 = 2.9130` (correct sum: `3.6362`). Expected W corrected from `0.6674` to `0.5344`. "Without A_origin" comparison corrected from `0.6536` to `0.5141`. All CHANGELOG references updated.
+- §8.6: **Schema versioning contradiction resolved** — "Additive (new optional field) → No increment" contradicted the `additionalProperties: false` enforcement documented in schemas/README.md. All schema changes now require a version increment, with rationale paragraph added explaining the security-over-forward-compatibility trade-off and the `_meta` escape hatch.
 - All repository links corrected to canonical `https://github.com/himeshaa/protocol`.
 - Schema domain migrated from `himeshaa.dev` to `himeshaa.com` across all JSON Schemas, README examples, and schemas/README.
 - GitHub repository metadata configured (description, homepage, topics).
@@ -41,10 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - §7.3: note that `hmp.node.memory.read` returns raw Git content without Server-computed fields.
 - §9.2: **Zero-authority edge case** documented — `A = 0` produces `C = 0` but memories remain discoverable via `hmp.node.memory.list`.
 - §9.5: **Boundedness** note — `A ∈ [0, 1]` naturally guaranteed by component bounds. No clamping required.
-- §8.6: **Schema Versioning** — formal rules for when schema versions increment (additive = no change, restrictive/destructive = new version), multi-version support requirements, and deprecation cycle.
+- §8.6: **Schema Versioning** — formal rules for when schema versions increment (all change types = new version, justified by `additionalProperties: false` enforcement), multi-version support requirements, and deprecation cycle.
 - §5.1: Formal `retrieval_status` enum with four defined values and computation rules based on the confirmation/contradiction graph.
 - §5: Pagination mandate refined: "durable collections" use cursor-based pagination; ephemeral data RPCs (e.g., `hmp.signal.poll`) MAY use timestamp-based filtering.
-- §9.2: Second verification vector (A_origin = 0.98, Σ A_confirming = 5.0, Σ A_contradicting = 1.0 → W = 0.6674) to validate A_origin inclusion.
+- §9.2: Second verification vector (A_origin = 0.98, Σ A_confirming = 5.0, Σ A_contradicting = 1.0 → W = 0.5344) to validate A_origin inclusion.
 - §10.2: Infrastructure note — Servers implementing `reasoning` extension MAY require GPU/LLM resources, operating beyond the stateless indexer role.
 - `additionalProperties: false` added to all JSON Schemas (`memory-v1.json`, `confirmation-v1.json`, `contradiction-v1.json`, `hmp-v1.json`, `common-v1.json#memory_context`) to prevent DoS via arbitrary fields.
 - `common-v1.json`: domain field description updated with SHOULD guidance for when to include domain in memories.
@@ -83,7 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Confidence model with authority-weighted evidence and Sybil-resistant scoring.
 - Asymptotically normalized W formula: `W = ln(1 + A_origin + Σ A_confirming) / (ln(1 + A_origin + Σ A_confirming) + ln(1 + Σ A_contradicting) + 1)`.
 - Explicit time decay formula: `T = 0.5 ^ (t / t_half)` with class-specific half-life table.
-- Verification vectors for W calculation: (1) A_origin = 0, Σ A_confirming = 49.0 → W = 0.7964; (2) A_origin = 0.98, Σ A_confirming = 5.0, Σ A_contradicting = 1.0 → W = 0.6674.
+- Verification vectors for W calculation: (1) A_origin = 0, Σ A_confirming = 49.0 → W = 0.7964; (2) A_origin = 0.98, Σ A_confirming = 5.0, Σ A_contradicting = 1.0 → W = 0.5344.
 - Mandated natural logarithm (base e / ln) for all logarithmic operations.
 - `cursor` parameter to `hmp.memory.request` for pagination consistency.
 - Content length guidance: `content` SHOULD NOT exceed 32,768 characters.

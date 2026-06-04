@@ -560,9 +560,11 @@ Schema files use a version suffix in their `$id` (e.g., `memory-v1.json`). Schem
 
 | Change Type | Schema Version Impact | Example |
 |-------------|----------------------|---------|
-| Additive (new optional field) | No increment — remains `v1` | Adding `_meta` to `memory-v1.json` |
+| Additive (new optional field) | Increment — becomes `v2` | Adding a new optional field to `memory-v1.json` |
 | Restrictive (new required field, type change) | Increment — becomes `v2` | Making `domain` required in `memory_context` |
 | Destructive (field removal, rename) | Increment — becomes `v2` | Renaming `content` to `body` |
+
+**Why additive changes require a version increment:** All HMP schemas enforce `additionalProperties: false` to prevent denial-of-service via arbitrary field injection (§Security Constraints in [schemas/README.md](schemas/README.md)). This means a `v1` validator will reject files containing fields introduced in `v2` — even optional ones. The trade-off is intentional: strict validation and security over forward compatibility. The `_meta` extension point provides a controlled escape hatch for implementation-specific metadata without schema version changes.
 
 Servers MUST support all schema versions referenced by the current protocol specification. When a new schema version is introduced, the previous version MUST remain supported for at least one full minor protocol version cycle (e.g., if `memory-v2.json` is introduced in HMP 0.3.0, `memory-v1.json` MUST remain supported through HMP 0.4.0).
 
@@ -619,11 +621,11 @@ This makes Sybil attacks economically infeasible. Authority is derived from real
 | # | A_origin | Σ A_confirming | Σ A_contradicting | Expected W |
 |---|----------|----------------|-------------------|------------|
 | 1 | 0 | 49.0 | 0 | `0.7964 ± 0.0001` |
-| 2 | 0.98 | 5.0 | 1.0 | `0.6674 ± 0.0001` |
+| 2 | 0.98 | 5.0 | 1.0 | `0.5344 ± 0.0001` |
 
-Vector 1 validates the baseline formula. Vector 2 validates the `A_origin` inclusion — without `A_origin`, the result would be `0.6536`, which is outside the tolerance band.
+Vector 1 validates the baseline formula. Vector 2 validates the `A_origin` inclusion — without `A_origin`, the result would be `0.5141`, which is outside the tolerance band.
 
-Derivation of Vector 2: `W = ln(1 + 0.98 + 5.0) / (ln(1 + 0.98 + 5.0) + ln(1 + 1.0) + 1) = ln(6.98) / (ln(6.98) + ln(2) + 1) = 1.9433 / (1.9433 + 0.6931 + 1) = 1.9433 / 2.9130 = 0.6674`.
+Derivation of Vector 2: `W = ln(1 + 0.98 + 5.0) / (ln(1 + 0.98 + 5.0) + ln(1 + 1.0) + 1) = ln(6.98) / (ln(6.98) + ln(2) + 1) = 1.9430 / (1.9430 + 0.6931 + 1) = 1.9430 / 3.6362 = 0.5344`.
 
 ### 9.3. T — Time Decay
 
